@@ -206,16 +206,6 @@ def extend_words(word_list, n = 1, POS='any', fns=[		'get_antonyms_from_input',
 
 
 
-
-def rhymes(s):
-	# See http://www.garysieling.com/blog/rhyming-with-nlp-and-shakespeare
-	import nltk
-	from nltk.corpus import cmudict
-	word = [(w,p) for (w,p) in cmudict.entries() if w==s][0]
-	print "OUR WORD IS", word
-	filtered = [wt for (wt, pt) in cmudict.entries() if word[1][-3:] == pt[-3:]]
-	print filtered
-
 def expand_word_inflections(word_list, include_same_stress_variations=True):
 	"""
 	Expand words into various forms, so 'play' would become player, playing, plays etc.
@@ -381,7 +371,7 @@ def find_vowel_matches_given_concepts(word_list, n=1):
 def find_rhyme_matches_given_wordlist_and_conditionals(word_list, conditionals):
 	"""
 	Input: word list [mat, pat, dog, rug], condition word(s) ['cat','log']
-	Output: dictionary of results --> {'mat': {'rhymes_with':'cat', 'score', 1} 'mat':{'rhymes_with':'log', 'score': 0}...]
+	Output: dictionary of results --> {'mat': {'rhymes_with':'cat', 'score', 1}, {'rhymes_with':'log', 'score': 0}...]
 	Given a word list (which is generated based on some requested topic(s)) and given some conditional rhyming words
 	(i.e. words we want to rhyme with) we pull out all rhyming pairs, and give them scores.
 	"""
@@ -395,18 +385,20 @@ def find_rhyme_matches_given_wordlist_and_conditionals(word_list, conditionals):
 	
 	# output = []
 	output = {}
-	for rhyme_word in conditionals:
-		for topic_word in word_list:
+	
+	for topic_word in word_list:
+		output[topic_word] = []
+		for rhyme_word in conditionals:
 			score = rhyme_score.words_rhyme_score(rhyme_word, topic_word, pronunciations) or 0
-			# output.append ( {'result_word':topic_word, 'rhymes_with':rhyme_word, 'score':score} )
-			output[topic_word] = {'rhymes_with':rhyme_word, 'score':score} 
+			output[topic_word].append({'rhymes_with':rhyme_word, 'score':score})
+			# i.e. {'mat': [{'rhymes_with':'cat', 'score', 1}, {'rhymes_with':'log', 'score': 0}...] }
 
 	return output
 
 def find_scan_matches_given_wordlist_and_conditionals(word_list, conditionals):
 	"""
 	Input: word list [mat, pat, obtuse, volcanic], condition word(s) ['extreme','volcano']
-	Output: dictionary of results --> {'mat': {'scans_with':'volcano', 'score', 0} 'obtuse':{'scans_with':'extreme', 'score': 1}...]
+	Output: dictionary of results --> {'mat': [{'scans_with':'volcano', 'score', 0}, {... } ] ,  'obtuse':[{'scans_with':'extreme', 'score': 1}, { }  ]...}
 	Given a word list (which is generated based on some requested topic(s)) and given some conditional rhyming words
 	(i.e. words we want to rhyme with) we pull out all pairs with same scan pattern.
 	"""
@@ -419,13 +411,13 @@ def find_scan_matches_given_wordlist_and_conditionals(word_list, conditionals):
 		conditionals = [conditionals]
 	# output = []
 	output = {}
-	for scan_word in conditionals:
-		for topic_word in word_list:
+	for topic_word in word_list:
+		output[topic_word] = []
+		for scan_word in conditionals:		
 			score = rhyme_score.words_scan_score(scan_word, topic_word, pronunciations) or 0
-			# output.append( {'result_word':topic_word, 'scans_with':scan_word, 'score':score} )
-			output[topic_word] = {'scans_with':scan_word, 'score':score} 
-
+			output[topic_word].append({'scans_with':scan_word, 'score':score})
 	return output
+	# i.e. {'mat': [{'scans_with':'volcano', 'score', 0}, {'scans_with':'extreme', 'score', 0} ] ,  'obtuse':[{'scans_with':'extreme', 'score': 1}, {'scans_with':'volcano', 'score', 0}  ]...}
 
 
 def word_finder(rhymes_with=[],
@@ -463,25 +455,37 @@ def word_finder(rhymes_with=[],
 	if rhymes_with:
 		r_list = find_rhyme_matches_given_wordlist_and_conditionals(word_list = topics, conditionals = rhymes_with)
 		if not scans_with:
-			return sorted(r_list, key = lambda x: x['score'])
+			collection_of_results = r_list
+			
 
 	# Find scans, and return if we are not looking at rhymes
 	if scans_with:
 		s_list = find_scan_matches_given_wordlist_and_conditionals(word_list = topics, conditionals = scans_with)
 		result_set.append(s_list)
 		if not rhymes_with:
-			return sorted(s_list, key = lambda x: x['score'])
+			collection_of_results = s_list
+			
 
 	# Combine scans and rhymes scores
 	if rhymes_with and scans_with:
-		output = {}
+		collection_of_results = {}
 		for result_word in r_list:
-			rhymes = r_list[result_word]   # i.e. {'rhymes_with':'something', 'score':'0.4'}
-			scans = s_list[result_word]		# i.e. {'scans_with':'somethingelse', 'score':'1'}
-			output[result_word] = {	'scans_with': scans['scans_with'],
-									'rhymes_with': rhymes['rhymes_with'],
-									'score':rhymes['score']*scans['score']}
-		return sorted(list(output.items()), key=lambda x: x[1]['score'])
+			collection_of_results[result_word] = []  # set up blank list to populate
+			rhymes = r_list[result_word]   # i.e. list of matches for the result topic word [{'rhymes_with':'desiredrhymeword', 'score':'0.4'}, {}...]
+			scans = s_list[result_word]		# i.e. list of matches for the result topic word [{'scans_with':'desiredscanword', 'score':'1'}, {}...]
+			combined_list_for_result_word = [
+						{	'scans_with': s['scans_with'],
+							'rhymes_with': r['rhymes_with'],
+							'score':r['score']*s['score']
+						}
+						for r in rhymes for s in scans
+					]  #i.e. a list of these for all combos of scan/rhyme conditions:  {'rhymes_with': 'drunkard', 'scans_with': 'biter', 'score': 0.2}
+			collection_of_results[result_word] = combined_list_for_result_word   # store it in the big collection for this result word
+	
+	return sorted( [(word, combo) for word in collection_of_results for combo in collection_of_results[word] if combo['score']!=0] , key=lambda x: x[1]['score'])
+		# i.e. list of tuples where tuple[0] is result, tuple[1] is info about the result including score
+		# = [('bastard', {'rhymes_with': 'drunkard', 'scans_with': 'biter', 'score': 0.2}),
+ 		#		('yogurt', {'rhymes_with': 'drunkard', 'scans_with': 'biter', 'score': 0.2})]
 
 
 def find_identical_tuple_codes(word_list_with_codes):
@@ -524,6 +528,7 @@ def word_similarity(word1, word2):
 # Find near rhymes, sounds likes
 # Find alliteration
 
+
 # Find substitute word given conditions:
 # POS (given part of speech)
 # stresses (given a stress pattern extracted from current word)
@@ -562,3 +567,14 @@ def word_similarity(word1, word2):
 # Store similar nouns in big dicitonary
 # When a noun is entered by a user within a word expansion we can also throw in any other similar nouns
 # e.g. ocean and fish are related, duck and egg are related
+
+
+"""
+What it can do:
+
+1) Given a theme:
+- generate word set
+- generate rhymes set
+- generate alliteration set
+- generate scan set
+"""
