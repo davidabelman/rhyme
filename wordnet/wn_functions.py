@@ -381,7 +381,7 @@ def find_vowel_matches_given_concepts(word_list, n=1):
 def find_rhyme_matches_given_wordlist_and_conditionals(word_list, conditionals):
 	"""
 	Input: word list [mat, pat, dog, rug], condition word(s) ['cat','log']
-	Output: word list with scores [(mat, cat, 1), (pat, cat, 1), (dog, log, 1), (rug, log, 0.2)]
+	Output: list of dictionary results with rhyme scores [{ 'result':'mat', 'rhymes_with':'cat', 'score':0.8},  {'result':'pat', 'rhymes_with'...} ...}
 	Given a word list (which is generated based on some requested topic(s)) and given some conditional rhyming words
 	(i.e. words we want to rhyme with) we pull out all rhyming pairs, and give them scores.
 	"""
@@ -394,17 +394,17 @@ def find_rhyme_matches_given_wordlist_and_conditionals(word_list, conditionals):
 		conditionals = [conditionals]
 	
 	output = []
-	for word1 in conditionals:
-		for word2 in word_list:
-			score = rhyme_score.words_rhyme_score(word1, word2, pronunciations)
-			output.append( (word1, word2, score) )
+	for rhyme_word in conditionals:
+		for topic_word in word_list:
+			score = rhyme_score.words_rhyme_score(rhyme_word, topic_word, pronunciations) or 0
+			output.append ( {'result_word':topic_word, 'rhymes_with':rhyme_word, 'score':score} )
 
-	return sorted(output, key= lambda x: x[2])
+	return output
 
 def find_scan_matches_given_wordlist_and_conditionals(word_list, conditionals):
 	"""
 	Input: word list [mat, pat, obtuse, volcanic], condition word(s) ['extreme','volcano']
-	Output: word list with scores [(mat, extreme, 0), (pat, extreme, 0), (obtuse, extreme, 1)...]
+	Output: word list of dicts with scores [{'result':'mat', 'scans_with':'volcano', 'score', 0}, {'result':'obtuse', 'scans_with':'extreme', 'score': 1}...]
 	Given a word list (which is generated based on some requested topic(s)) and given some conditional rhyming words
 	(i.e. words we want to rhyme with) we pull out all pairs with same scan pattern.
 	"""
@@ -416,12 +416,12 @@ def find_scan_matches_given_wordlist_and_conditionals(word_list, conditionals):
 	if type(conditionals)==str:
 		conditionals = [conditionals]
 	output = []
-	for word1 in conditionals:
-		for word2 in word_list:
-			score = rhyme_score.words_scan_score(word1, word2, pronunciations)
-			output.append( (word2, score) )
+	for scan_word in conditionals:
+		for topic_word in word_list:
+			score = rhyme_score.words_scan_score(scan_word, topic_word, pronunciations) or 0
+			output.append( {'result_word':topic_word, 'scans_with':scan_word, 'score':score} )
 
-	return sorted(output, key= lambda x: x[1])
+	return output
 
 
 def word_finder(rhymes_with=[],
@@ -449,22 +449,33 @@ def word_finder(rhymes_with=[],
 	if topics_extend:
 		topics = extend_words(topics, fns=['get_synonyms_from_input'], POS=output_POS)
 
-	# Find rhymes
+	# Find rhymes and return if we are not looking at scans
 	if rhymes_with:
 		r_list = find_rhyme_matches_given_wordlist_and_conditionals(word_list = topics, conditionals = rhymes_with)
-		print "RHYMES:"
-		print r_list[-50:]
-		result_set.append(r_list)
+		if not scans_with:
+			return sorted(r_list, key = lambda x: x['score'])
 
-	# Find scans
+	# Find scans, and return if we are not looking at rhymes
 	if scans_with:
 		s_list = find_scan_matches_given_wordlist_and_conditionals(word_list = topics, conditionals = scans_with)
-		print "SCANS:"
-		print s_list[-50:]
 		result_set.append(s_list)
+		if not rhymes_with:
+			return sorted(s_list, key = lambda x: x['score'])
 
-	print 'results:'
-	print [(r[0], r[1], r[2]+s[1]) for s in s_list for r in r_list if r[1]==s[0]]
+	if rhymes_with and scans_with:
+		result_list = [
+			{
+				'result_word':r_entry['result_word'],
+				'rhymes_with':r_entry['rhymes_with'], 
+				'scans_with':s_entry['scans_with'],
+				'score':s_entry['score']*r_entry['score'],
+			}
+
+			for r_entry in r_list for s_entry in s_list			
+			if r_entry['result_word'] == s_entry['result_word']
+		]
+
+		return sorted(result_list, key = lambda x: x['score'])
 
 
 def find_identical_tuple_codes(word_list_with_codes):
