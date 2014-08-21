@@ -66,7 +66,7 @@ def words_rhyme_score(w1, w2, pronunciations):
 		None
 
 	
-	# Find last main stress in words
+	# Use CMU dict
 	p1_list = pronunciations.get(w1_split)  # ['AE2', 'N', 'AH0', 'K', 'D', 'OW1', 'T', 'AH0', 'L']
 	p2_list = pronunciations.get(w2_split)
 
@@ -176,3 +176,64 @@ def words_rhyme_score(w1, w2, pronunciations):
 		# TODO approx pronounciation
 		# print "No CMU entry for word"
 		return 0
+
+def words_scan_score(w1, w2, pronunciations):
+	"""
+	Returns a score for word scan (0 = none, 1 = exact, 0.5 = after stress etc.)
+	Currently only uses default pronunciation from CMU, ignores any variations
+	Also should deal with words not in the CMU pronouncing dict
+	"""
+	import re
+	# If words are double, make sure pronunciations for words are found separately and joined
+	w1_split, w2_split = re.split('-|_| ',w1) , re.split('-|_| ',w2)
+	p1_list, p2_list = [], []
+	try:
+		for w in w1_split:
+			p1_list.extend(pronunciations[w][0])
+		for w in w2_split:
+			p2_list.extend(pronunciations[w][0])
+	except:
+		# Can't find words in CMU dict
+		return 0
+
+	# Use CMU dict
+	# p1_list = pronunciations.get(w1)  # ['AE2', 'N', 'AH0', 'K', 'D', 'OW1', 'T', 'AH0', 'L']
+	# p2_list = pronunciations.get(w2)
+
+	if p1_list and p2_list:
+		# Look for exact scan equality
+		scan1 = [letter[-1] for letter in p1_list if letter[-1] in ('0', '1', '2')]
+		scan2 = [letter[-1] for letter in p2_list if letter[-1] in ('0', '1', '2')]
+		
+		if scan1==scan2:
+			return 1
+
+		# Look for scan equality only after the main stress
+		# Find part after first main stress only
+		try:
+			list_ = [x[-1] for x in p1_list]
+			# list_.reverse()  # If we wanted to find the last stress
+			# stress1 = len(list_) - list_.index('1')  # If we wanted to find the last stress
+			stress1 = list_.index('1')  # 5
+			p1 = p1_list[stress1:]   # ['OW1', 'T', 'AH0', 'L']
+		
+			
+			list_ = [x[-1] for x in p2_list]
+			# list_.reverse() # If we wanted to find the last stress
+			# stress2 = len(list_) - list_.index('1')  # If we wanted to find the last stress
+			stress2 = list_.index('1')  # 5
+			p2 = p2_list[stress2:] 
+		except:
+			# print "No stress found for one of:", w1, w2
+			return None
+		scan1 = [letter[-1] for letter in p1 if letter[-1] in ('0', '1', '2')]
+		scan2 = [letter[-1] for letter in p2 if letter[-1] in ('0', '1', '2')]
+
+		if scan1==scan2:
+			return 0.5
+
+		# No scan found
+		return 0
+	else:
+		return 0
+				

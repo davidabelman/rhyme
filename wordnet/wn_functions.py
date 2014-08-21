@@ -382,6 +382,8 @@ def find_rhyme_matches_given_wordlist_and_conditionals(word_list, conditionals):
 	"""
 	Input: word list [mat, pat, dog, rug], condition word(s) ['cat','log']
 	Output: word list with scores [(mat, cat, 1), (pat, cat, 1), (dog, log, 1), (rug, log, 0.2)]
+	Given a word list (which is generated based on some requested topic(s)) and given some conditional rhyming words
+	(i.e. words we want to rhyme with) we pull out all rhyming pairs, and give them scores.
 	"""
 	import rhyme_score
 	reload(rhyme_score)
@@ -399,6 +401,28 @@ def find_rhyme_matches_given_wordlist_and_conditionals(word_list, conditionals):
 
 	return sorted(output, key= lambda x: x[2])
 
+def find_scan_matches_given_wordlist_and_conditionals(word_list, conditionals):
+	"""
+	Input: word list [mat, pat, obtuse, volcanic], condition word(s) ['extreme','volcano']
+	Output: word list with scores [(mat, extreme, 0), (pat, extreme, 0), (obtuse, extreme, 1)...]
+	Given a word list (which is generated based on some requested topic(s)) and given some conditional rhyming words
+	(i.e. words we want to rhyme with) we pull out all pairs with same scan pattern.
+	"""
+	import rhyme_score
+	reload(rhyme_score)
+	from nltk.corpus import cmudict
+	pronunciations = cmudict.dict()
+
+	if type(conditionals)==str:
+		conditionals = [conditionals]
+	output = []
+	for word1 in conditionals:
+		for word2 in word_list:
+			score = rhyme_score.words_scan_score(word1, word2, pronunciations)
+			output.append( (word2, score) )
+
+	return sorted(output, key= lambda x: x[1])
+
 
 def word_finder(rhymes_with=[],
 				rhymes_with_extend=False,
@@ -412,6 +436,8 @@ def word_finder(rhymes_with=[],
 	"""
 	Wrapper for user to find word given inputs from AJAX
 	"""
+	result_set = []
+
 	# Either rhyme with specific word(s) or extend the rhyme set given some part of speech
 	if type(rhymes_with)==str:
 		rhymes_with = [rhymes_with]
@@ -423,8 +449,22 @@ def word_finder(rhymes_with=[],
 	if topics_extend:
 		topics = extend_words(topics, fns=['get_synonyms_from_input'], POS=output_POS)
 
-	for x in find_rhyme_matches_given_wordlist_and_conditionals(word_list = topics, conditionals = rhymes_with):
-		print x
+	# Find rhymes
+	if rhymes_with:
+		r_list = find_rhyme_matches_given_wordlist_and_conditionals(word_list = topics, conditionals = rhymes_with)
+		print "RHYMES:"
+		print r_list[-50:]
+		result_set.append(r_list)
+
+	# Find scans
+	if scans_with:
+		s_list = find_scan_matches_given_wordlist_and_conditionals(word_list = topics, conditionals = scans_with)
+		print "SCANS:"
+		print s_list[-50:]
+		result_set.append(s_list)
+
+	print 'results:'
+	print [(r[0], r[1], r[2]+s[1]) for s in s_list for r in r_list if r[1]==s[0]]
 
 
 def find_identical_tuple_codes(word_list_with_codes):
