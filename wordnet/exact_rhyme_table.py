@@ -1,4 +1,4 @@
-f = open('exact_rhyme_table.txt').readlines()
+f = open('downloaded_data/exact_rhyme_table.txt').readlines()
 rhyme_codes = {}
 # rhyme_codes_inverse = {}
 for line in f:

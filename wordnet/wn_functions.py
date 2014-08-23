@@ -1,5 +1,6 @@
 from nltk.corpus import wordnet as wn
 from nltk.corpus import cmudict
+from collocations import general_collocations
 pronunciations = cmudict.dict()
 
 def find_synonyms(word):
@@ -162,6 +163,26 @@ def get_similar_simple_nouns_from_input(input_word, POS='any'):
 		# Didn't want a noun
 		return []
 
+def get_general_collocations_from_input(input_word, collocations = general_collocations, POS='any'):
+	"""
+	Search collocations dictionary for collocations
+	Input: word 
+	Output: list of words
+	TODO: currently collocations doesn't use proper POS information, though this is in the source files
+	"""
+	output = []	
+	# look up in collocations dictionary
+	results = collocations.get(input_word,'')
+	if results:
+		for score, word in results:
+			synsets = wn.synsets(word)
+			for synset in synsets:
+				if (synset.pos in POS or POS=='any') and word not in output:
+					output.append(word)
+		return output
+	else:
+		# Not in the dictionary
+		return []
 
 def extend_words(word_list, n = 1, POS='any', fns=[		'get_antonyms_from_input',
 														'get_synonyms_from_input',
@@ -447,6 +468,7 @@ def word_finder(rhymes_with=[],
 		rhymes_with = extend_words(rhymes_with, POS=rhymes_with_POS)
 
 	# Extend the topic set (level should be set by the user)
+	topics = expand_word_inflections(topics)
 	topics = extend_words(topics, POS=output_POS)
 	if topics_extend:
 		topics = extend_words(topics, fns=['get_synonyms_from_input'], POS=output_POS)

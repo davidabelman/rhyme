@@ -37,7 +37,7 @@ def create_noun_list_from_noun_list(path = 'common_nouns.txt'):
 		nouns.append(line.strip())
 	return nouns
 
-def create_POS_list_from_word_list(path = 'common_words.txt', length=1000, POS='n'):
+def create_POS_list_from_word_list(path = 'downloaded_data/common_words.txt', length=1000, POS='n'):
 	"""
 	Uses 5000 word list of words to pick out X most common of POS-type P.
 	create_POS_list_from_word_list(path = 'common_words.txt', length=1000, POS='n')
