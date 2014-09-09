@@ -1,3 +1,13 @@
+"""
+This file creates the collocation dictionary pickle
+TODO: create proper collocation score based on P(x+y)/P(x)P(y)
+Would need to record number of occurances of each word individually, as well as how many collocations per word
+When calculating MI, look up number of collocations between words, and number of each word, as per formula
+Could then re-include stopwords?
+TODO: include POS information within the dictionary?
+"""
+
+
 def save_pickle(data, filename, silent = False):
 	"""
 	Saves pickle and prints to screen
@@ -8,15 +18,30 @@ def save_pickle(data, filename, silent = False):
 	pickle.dump( data, open( filename, "wb" ) )
 
 
+def create_stopwords():
+	"""
+	Returns a stopword list
+	"""
+	# Already existing list
+	from nltk.corpus import stopwords
+	stop = stopwords.words('english')
+
+	# Add more on from file
+	f = open('downloaded_data/stopwords.txt').readlines()	
+	# Create a combined set
+	output = list ( set( stop + [w.strip() for w in f] ) )
+	save_pickle(output, 'created/stopwords.p')
+	return output
+
+
 def create_collocations_dictionary():
 	"""
 	Create collocation dictionary using ngram data, save to pickle
+	TODO: include individual word count
 	"""
-	from nltk.corpus import stopwords
-	stop = stopwords.words('english')
-	
 	# Reduce words to lemmas
 	from pattern.en import lemma
+	stop = create_stopwords()
 
 	collocations = {}
 	for filenumber in ['2','3','4','5']:
@@ -60,11 +85,12 @@ def trim_collocations_dictionary(collocations, n=20, mincount = 2):
 			errorcount+=1
 	return out
 
+############ RUN PROGRAM ###########
 # Save all data at end
 if __name__=='__main__':
-	choice = raw_input("Are you sure you wish to recreate collocation dictionary lookup? ('y' to continue) >> ")
+	choice = raw_input("Are you sure you wish to recreate collocation dictionary lookup?\nThis can take a few minutes ('y' to continue) >> ")
 	if choice=='y':
-		print "Creating collocations dictionary as a pickle. This takes a few minutes..."
+		print "Creating collocations dictionary as a pickle..."
 		c = create_collocations_dictionary()
 		c = trim_collocations_dictionary(c, n=20, mincount=2)
 		save_pickle(c, 'created/collocations_dict.p')

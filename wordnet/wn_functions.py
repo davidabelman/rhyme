@@ -1,24 +1,10 @@
 from nltk.corpus import wordnet as wn
 from nltk.corpus import cmudict
-from collocations import general_collocations
+from stored_assets import general_collocations
 pronunciations = cmudict.dict()
 
-def find_synonyms(word):
-	"""
-	Temp function
-	"""
-	# Find all synsets (entities) of the word	
-	synsets = wn.synsets(word)
-	all_lemmas = set()
-	for synset in synsets:
-		print "Synset is %s" %synset
-		syns = [n.replace('_', ' ') for n in synset.lemma_names]
-		counts = [l.count() for l in synset.lemmas]
-		ants = [a for m in synset.lemmas for a in m.antonyms()]  # Find antonym at each lemma level
-		print "Synonyms: ",syns
-		print "Counts: ", counts
-		print "Antonyms:", ants
 
+######### EXTEND SINGLE WORDS IN VARIOUS WAYS (helper functions) ##########
 
 def get_synonyms_from_input(input_word, separate=False, primary_only=False, POS='any'):
 	"""
@@ -84,25 +70,6 @@ def get_synonyms_from_input(input_word, separate=False, primary_only=False, POS=
 	return output_list
 
 
-# def get_synonyms_from_input_recursive(input_word, n=1):
-# 	"""
-# 	Gets synonym lemmas from input word, then lemmas of these words, etc.
-# 	n is number of times to recur (default = 1, one recursion)
-# 	"""
-# 	done_list = [input_word]
-# 	results = get_synonyms_from_input(input_word = input_word, separate=False)
-
-# 	# Now we go through results adn reapply the function
-# 	for x in range(n):
-# 		for i in results:
-# 			if i not in done_list:
-# 				more_results = get_synonyms_from_input(input_word = i, separate=False)
-# 				done_list.append(i)
-# 				for j in more_results:
-# 					if j not in results:
-# 						results = results + [j]
-# 	return results
-
 
 def get_antonyms_from_input(input_word, POS='any'):
 	"""
@@ -150,9 +117,10 @@ def get_relations_from_input(input_word, POS='any'):
 def get_similar_simple_nouns_from_input(input_word, POS='any'):
 	"""
 	Given an input noun, return any related nouns if they exist in the simple-noun-similarity dict
+	This was created using pattern's similarity measure between most common nouns
 	"""
 	if POS=='any' or POS=='n':
-		from load_similar_words import simple_noun_similarity_dict
+		from stored_assets import simple_noun_similarity_dict
 		if input_word in simple_noun_similarity_dict:
 			similar_words = simple_noun_similarity_dict[input_word]
 			return [word for (score, word) in similar_words]
@@ -168,11 +136,13 @@ def get_general_collocations_from_input(input_word, collocations = general_collo
 	Search collocations dictionary for collocations
 	Input: word 
 	Output: list of words
-	TODO: currently collocations doesn't use proper POS information, though this is in the source files
+	TODO: currently collocations doesn't use proper POS information
+	... though this is in the source files, not hard to make a unique entry for each POS (just do noun, adverb, very, adjective)
 	"""
 	output = []	
-	# look up in collocations dictionary
-	results = collocations.get(input_word,'')
+	# Look up in collocations dictionary
+	from pattern.en import lemma
+	results = collocations.get(lemma(input_word),'')
 	if results:
 		for score, word in results:
 			synsets = wn.synsets(word)
@@ -184,10 +154,45 @@ def get_general_collocations_from_input(input_word, collocations = general_collo
 		# Not in the dictionary
 		return []
 
+def get_similar_english_vocab_from_input(input_word, POS='any'):
+	"""
+	Given input word, return words that appear in the same category on English vocab list website
+	TODO Need to deal with part of speech somehow (note that 'verb', 'adjective' often contained within title of page extracted in HTML already, so could use this info, or lookup within wordnet)
+	"""
+	output = []
+	# Load the lookup dictionaries
+	from stored_assets import find_category_given_word, find_word_given_category
+
+	# Find all inflections of the input word
+	input_word_extended = expand_word_inflections([input_word])
+
+	# Find any categories to which the word belongs to
+	categories = []
+	for word in input_word_extended:
+		if word in find_category_given_word:
+			categories.extend(find_category_given_word[word])
+	categories = list(set(categories))
+
+	# Extract all words belonging to these categories
+	for category in categories:
+		print category
+		related_words = find_word_given_category[category]
+		print related_words
+		output.extend(related_words)
+
+	# Return result
+	return list(set(output))
+
+
+######### EXPAND WORD LISTS (aggregating helper functions) ##########
+
 def extend_words(word_list, n = 1, POS='any', fns=[		'get_antonyms_from_input',
 														'get_synonyms_from_input',
 														'get_relations_from_input',
-														'get_similar_simple_nouns_from_input']):
+														'get_similar_simple_nouns_from_input',
+														'get_similar_english_vocab_from_input',
+														'get_general_collocations_from_input'
+													]):
 	"""
 	Input: a list of words or a single word
 	Returns: a list of words (synonyms, relations, antonyms, related_nouns -- as specified)
@@ -199,14 +204,19 @@ def extend_words(word_list, n = 1, POS='any', fns=[		'get_antonyms_from_input',
 	i.e. only finding one set of relations, then applying another synonyms round on this
 	"""
 	# Functions to loop through (excludes any not in arguments though)
-	functions = [	get_synonyms_from_input,
+	functions = [	
+					get_synonyms_from_input,
 					get_relations_from_input,
 					get_similar_simple_nouns_from_input,
-					get_antonyms_from_input]
+					get_antonyms_from_input
+				]
 	
 	# Convert string to list if given just single word
 	if type(word_list)==str:
 		word_list = [word_list]
+
+	# Make a copy, used for later
+	original_word_list = [x for x in word_list]
 
 	# Repeat n times
 	for _ in range(n):
@@ -223,8 +233,59 @@ def extend_words(word_list, n = 1, POS='any', fns=[		'get_antonyms_from_input',
 		for finding in temp_found_list:
 			if finding not in word_list:
 				word_list.append(finding)
+
+	# Also find related words from same categories (only ever do this once though, not repeated)
+	if 'get_similar_english_vocab_from_input' in fns and n>=1:
+		for w in original_word_list:
+			extra_vocab = get_similar_english_vocab_from_input(w, POS=POS)
+			print extra_vocab
+			for word in extra_vocab:
+				if word not in word_list:
+					word_list.extend(extra_vocab)
+
+	# Also find common collocations (only ever do this once though, not repeated)
+	if 'get_general_collocations_from_input' in fns:
+		for w in original_word_list:
+			collocations = get_general_collocations_from_input(w, POS=POS)
+			for word in collocations:
+				if word not in word_list:
+					word_list.extend(collocations)
+
 	return word_list
 
+
+def extend_words_by_level(word_list, level=[1,2,3][0], POS='any'):
+	"""
+	Extend words by a certain 'level', i.e. certain order of expansions according to a set level
+	Level can be (currently) 1,2 or 3
+	Returns extended word list
+	Uses extend_words to do so
+	"""
+	# Convert string to list if necessary
+	word_list = [word_list] if type(word_list)==str else word_list
+	original_word_list = [w for w in word_list]
+
+	# Extend to different levels
+	if level >=1:
+		# Basic extension of word_list
+		word_list = expand_word_inflections(word_list)
+		word_list = extend_words(word_list, fns=[
+												'get_antonyms_from_input',
+												'get_synonyms_from_input',
+												'get_relations_from_input',
+											], 
+										POS=POS) 
+	if level >=2:
+		# Further extension, get synonyms of all words found so far
+		word_list = extend_words(word_list, fns=['get_synonyms_from_input'], POS=POS)
+	if level >=3:
+		# Further extension, bring in the related words
+		additional_words = extend_words(original_word_list, fns=[
+											'get_similar_english_vocab_from_input',
+															], POS=POS)
+		word_list.extend([w for w in additional_words if w not in word_list])
+	
+	return word_list
 
 
 def expand_word_inflections(word_list, include_same_stress_variations=True):
@@ -232,6 +293,11 @@ def expand_word_inflections(word_list, include_same_stress_variations=True):
 	Expand words into various forms, so 'play' would become player, playing, plays etc.
 	So that we can find more rhyming possibilities
 	"""
+	# Make sure we treat string as list of length 1
+	if type(word_list) == str:
+		word_list = [word_list]
+
+	# Expand words one at a time
 	from pattern.en import pluralize, singularize, comparative, superlative, lexeme
 	inflections = []
 	for word in word_list:
@@ -239,11 +305,22 @@ def expand_word_inflections(word_list, include_same_stress_variations=True):
 			# Only do this if we want to have play, plays, played ,
 			#i.e. we don't want this when finding similar stresses as they will all be matched with each other
 			inflections.extend( lexeme(word) )   #[play plays playing played]
+			inflections.append( singularize(word) )
+			inflections.append( pluralize(word) )
 		inflections.append( word )
 		inflections.append( comparative(word) )		#hotter
 		inflections.append( superlative(word) )		#hottest
-		inflections.append( lexeme(word)[2] )   # playing
+		try:
+			inflections.append( lexeme(word)[2] )   # playing
+		except:
+			None
 	return list(set(inflections))
+
+
+
+
+
+######### FIND GENERAL GROUPS OF WORDS IN WORDLISTS (helper functions) ##########
 
 def find_exact_rhymes_given_wordlist(word_list):
 	"""
@@ -287,6 +364,7 @@ def find_alliteration_given_wordlist(word_list, depth=2):
 		first_word = word_split[0]  # First part of word only
 		try:
 			p = pronunciations[first_word][0]
+			print p
 			word_list_with_codes.append((word, ''.join(p[0:depth])))  # i.e. [('cat', 'CAH1T']), ('dog'...)]
 		except:
 			None
@@ -336,6 +414,31 @@ def find_vowel_matches_given_wordlist(word_list):
 	
 	return find_identical_tuple_codes(word_list_with_codes)
 
+def find_sound_matches_given_wordlist(word_list, threshold=0.85):
+	"""
+	Input: word list
+	Output: [ [she sells, sea shells], [braid, drab]]
+	Finds words in the input list which have similar sounds, up to a threshold
+	TODO: deal with words not in cmudict
+	"""
+	from nltk.corpus import cmudict
+	pronunciations = cmudict.dict()
+	import rhyme_score
+	reload(rhyme_score)
+
+	out, done_list = [], []
+	for w1 in word_list:
+		done_list.append(w1)
+		for w2 in word_list:
+			if w2 not in done_list:
+				score = rhyme_score.words_same_sounds_score(w1, w2, pronunciations)
+				out.append((score, w1, w2))
+	return [[x[1], x[2]] for x in out if x[0]>threshold]
+
+
+
+
+######### FIND GENERAL GROUPS OF WORDS GIVEN CONCEPTS ##########
 
 def find_exact_rhymes_given_concepts(word_list, n=1):
 	"""
@@ -389,6 +492,20 @@ def find_vowel_matches_given_concepts(word_list, n=1):
 	result = find_vowel_matches_given_wordlist(words_to_stress_inflected)
 	return sorted(result, key = av_word_len, reverse = True)
 
+def find_sound_matches_given_concepts(word_list, n=1, threshold=0.85):
+	"""
+	Input: word list of concepts
+	Output: list of lists where each sublist is pair of similar sounding words
+	Argument n says number of expansion iterations to find related words
+	"""
+	words_to_find_sounds = extend_words(word_list, n=n)
+	return find_sound_matches_given_wordlist(words_to_find_sounds, threshold)
+
+
+
+
+######### WORD FINDER FUNCTIONS ##########
+
 def find_rhyme_matches_given_wordlist_and_conditionals(word_list, conditionals):
 	"""
 	Input: word list [mat, pat, dog, rug], condition word(s) ['cat','log']
@@ -411,7 +528,7 @@ def find_rhyme_matches_given_wordlist_and_conditionals(word_list, conditionals):
 		output[topic_word] = []
 		for rhyme_word in conditionals:
 			score = rhyme_score.words_rhyme_score(rhyme_word, topic_word, pronunciations) or 0
-			output[topic_word].append({'rhymes_with':rhyme_word, 'score':score})
+			output[topic_word].append({'rhymes_with':rhyme_word, 'score':score}) if score>0 else None
 			# i.e. {'mat': [{'rhymes_with':'cat', 'score', 1}, {'rhymes_with':'log', 'score': 0}...] }
 
 	return output
@@ -436,12 +553,134 @@ def find_scan_matches_given_wordlist_and_conditionals(word_list, conditionals):
 		output[topic_word] = []
 		for scan_word in conditionals:		
 			score = rhyme_score.words_scan_score(scan_word, topic_word, pronunciations) or 0
-			output[topic_word].append({'scans_with':scan_word, 'score':score})
+			output[topic_word].append({'scans_with':scan_word, 'score':score}) if score>0 else None
 	return output
 	# i.e. {'mat': [{'scans_with':'volcano', 'score', 0}, {'scans_with':'extreme', 'score', 0} ] ,  'obtuse':[{'scans_with':'extreme', 'score': 1}, {'scans_with':'volcano', 'score', 0}  ]...}
 
+def find_sound_matches_given_wordlist_and_conditionals(word_list, conditionals):
+	"""
+	Input: word list [mat, pat, obtuse, trees], condition word(s) ['extreme','volcano']
+	Output: dictionary of results --> {'trees': [{'shares_sounds':'extreme', 'score', 0.6}, {... } ] ,  'obtuse':[{'scans_with':'extreme', 'score': 0.2}, { }  ]...}
+	Given a word list (which is generated based on some requested topic(s)) and given some conditional sounds-like words
+	(i.e. words we want to sound like) we pull out all pairs with similar sounds
+	"""
+	import rhyme_score
+	reload(rhyme_score)
+	from nltk.corpus import cmudict
+	pronunciations = cmudict.dict()
 
-def word_finder(rhymes_with=[],
+	if type(conditionals)==str:
+		conditionals = [conditionals]
+	# output = []
+	output = {}
+	for topic_word in word_list:
+		output[topic_word] = []
+		for sounds_like_word in conditionals:		
+			score = rhyme_score.words_same_sounds_score(sounds_like_word, topic_word, pronunciations) or 0
+			output[topic_word].append({'shares_sounds':sounds_like_word, 'score':score}) if score>0.8 else None
+	return output
+	# i.e. [{'mat': {'trees': [{'shares_sounds':'extreme', 'score', 0.6}, {... } ] ,  'obtuse':[{'scans_with':'extreme', 'score': 0.2}, { }  ]...}
+
+
+def find_alliteration_matches_given_wordlist_and_conditionals(word_list, conditionals):
+	"""
+	Input: word list [mat, pat, obtuse, trees], condition word(s) ['man','obtain']
+	Output: dictionary of results --> {'mat': [{'alliterates_with':'man', 'score', 2}, {... } ] ,  'obtuse':[{'alliterates_with':'obscure', 'score': 3.5}, { }  ]...}
+	Given a word list (which is generated based on some requested topic(s)) and given some conditional alliterative words
+	(i.e. words we want to start with same letters) we pull out all pairs with alliteration going on
+	"""
+	import rhyme_score
+	reload(rhyme_score)
+	from nltk.corpus import cmudict
+	pronunciations = cmudict.dict()
+
+	if type(conditionals)==str:
+		conditionals = [conditionals]
+	# output = []
+	output = {}
+	for topic_word in word_list:
+		output[topic_word] = []
+		for alliterate_word in conditionals:		
+			score = rhyme_score.words_alliterate_score(alliterate_word, topic_word, pronunciations) or 0
+			output[topic_word].append({'alliterates_with':alliterate_word, 'score':score}) if score>=1 and score<=4 else None
+	return output
+	# i.e. [{'mat': {'trees': [{'shares_sounds':'extreme', 'score', 0.6}, {... } ] ,  'obtuse':[{'scans_with':'extreme', 'score': 0.2}, { }  ]...}
+
+
+
+def word_finder(mode=['rhyme','alliterate','sound','scan'][0],
+
+				base=[],
+				base_extend_level=[0,1,2][0],
+				base_POS='any',
+
+				secondary_scans_with=[],
+
+				topics=[],
+				topics_extend_level=[0,1,2][0],
+				output_POS='any'):
+	"""
+	Wrapper for user to find word given inputs from AJAX
+	User enters a base word (or words) which the target word needs to either:
+		1 Rhyme with
+		2 Alliterate with
+		3 Share similar sounds with
+		4 Scan with
+	The target needs to be constrained within a certain subject (topic) set by user (and can be expanded to various degrees)
+	For 1, 2, 3 the user can optionally supply a 'scan with' argument
+	User can provide a POS for the output word
+	"""
+	# Housekeeping
+	original_topics = [x for x in topics]
+	original_base = [x for x in base]
+	base = [base] if type(base)==str else base
+	secondary_scans_with = [secondary_scans_with] if type(secondary_scans_with)==str else secondary_scans_with
+	topics = [topics] if type(topics)==str else topics
+
+	# Extend words to desired level
+	# --> Topics	
+	topics = extend_words_by_level(word_list = topics, level=topics_extend_level)
+	# --> Base word	
+	base = extend_words_by_level(word_list = base, level=base_extend_level)
+	
+	# If looking to find rhymes/alliterations/sounds
+	if mode=='rhyme':
+		primary_list = find_rhyme_matches_given_wordlist_and_conditionals(word_list = topics, conditionals = base)
+	if mode=='alliterate':
+		primary_list= find_alliteration_matches_given_wordlist_and_conditionals(word_list = topics, conditionals = base)
+	if mode=='sound':
+		primary_list = find_sound_matches_given_wordlist_and_conditionals(word_list = topics, conditionals = base)
+	if mode=='scan':  # Note that we won't have a secondary scans with argument here, restricted by HTML layout
+		primary_list = find_scan_matches_given_wordlist_and_conditionals(word_list = topics, conditionals = base)
+	
+	# If we are not looking to combine any additional scan scores, we have then finished our collection of results now
+	if not secondary_scans_with:
+		collection_of_results = primary_list
+
+	# Combine scans and rhymes scores
+	else:
+		collection_of_results = {}
+		for result_word in primary_list:
+			collection_of_results[result_word] = []  # set up blank list to populate
+			rhymes = r_list[result_word]   # i.e. list of matches for the result topic word [{'rhymes_with':'desiredrhymeword', 'score':'0.4'}, {}...]
+			scans = s_list[result_word]		# i.e. list of matches for the result topic word [{'scans_with':'desiredscanword', 'score':'1'}, {}...]
+			combined_list_for_result_word = [
+						{	
+							'scans_with': s['scans_with'],
+							'rhymes_with': r['rhymes_with'],
+							'score':r['score']*s['score']
+						}
+						for r in rhymes for s in scans
+					]  #i.e. a list of these for all combos of scan/rhyme conditions:  {'rhymes_with': 'drunkard', 'scans_with': 'biter', 'score': 0.2}
+			collection_of_results[result_word] = combined_list_for_result_word   # store it in the big collection for this result word
+	
+	return sorted( [(word, combo) for word in collection_of_results for combo in collection_of_results[word] if combo['score']!=0] , key=lambda x: x[1]['score'])
+		# i.e. list of tuples where tuple[0] is result, tuple[1] is info about the result including score
+		# = [('bastard', {'rhymes_with': 'drunkard', 'scans_with': 'biter', 'score': 0.2}),
+ 		#		('yogurt', {'rhymes_with': 'drunkard', 'scans_with': 'biter', 'score': 0.2})]
+
+
+def word_finder_old(rhymes_with=[],
 				rhymes_with_extend=False,
 				rhymes_with_POS='any',
 
@@ -453,25 +692,47 @@ def word_finder(rhymes_with=[],
 				output_POS='any'):
 	"""
 	Wrapper for user to find word given inputs from AJAX
-	User can select a word to rhyme with, or multiple words, and then expand this set if they wish (with optional part of speech parameter)
-	User can select a word to scan with, or multiple words
-	User must select a topic, or multiple topics, for the resulting word, and can expand these
+	User enters a base word (or words) which the target word needs to either:
+		1 Rhyme with
+		2 Alliterate with
+		3 Share similar sounds with
+		4 Scan with
+	The target needs to be constrained within a certain subject (topic) set by user (and can be expanded to various degrees)
+	For 1, 2, 3 the user can optionally supply a 'scan with' argument
 	User can provide a POS for the output word
-	Only thing not covered is the scan length for a rhyming word expansion...
 	"""
 	result_set = []
+	original_topics = [x for x in topics]
+	original_rhymes_with = [x for x in rhymes_with]
 
 	# Either rhyme with specific word(s) or extend the rhyme set given some part of speech
 	if type(rhymes_with)==str:
 		rhymes_with = [rhymes_with]
 	if rhymes_with_extend:
-		rhymes_with = extend_words(rhymes_with, POS=rhymes_with_POS)
+		rhymes_with = extend_words(rhymes_with, POS=rhymes_with_POS, fns=[
+											'get_antonyms_from_input',
+											'get_synonyms_from_input',
+											'get_relations_from_input',
+											'get_similar_english_vocab_from_input',
+											])
 
 	# Extend the topic set (level should be set by the user)
+	if type(topics)==str:
+		topics = [topics]
 	topics = expand_word_inflections(topics)
-	topics = extend_words(topics, POS=output_POS)
+	topics = extend_words(topics, fns=[
+											'get_antonyms_from_input',
+											'get_synonyms_from_input',
+											'get_relations_from_input',
+											# 'get_similar_simple_nouns_from_input',
+										], POS=output_POS)  # Extend topics by one level always (for now - revise this perhaps TODO)
 	if topics_extend:
 		topics = extend_words(topics, fns=['get_synonyms_from_input'], POS=output_POS)
+		topics = topics + extend_words(original_topics, fns=[
+											'get_similar_english_vocab_from_input',
+											# 'get_general_collocations_from_input'
+															], POS=output_POS)
+		topics = list(set(topics))
 
 	# Find rhymes and return if we are not looking at scans
 	if rhymes_with:
@@ -496,7 +757,8 @@ def word_finder(rhymes_with=[],
 			rhymes = r_list[result_word]   # i.e. list of matches for the result topic word [{'rhymes_with':'desiredrhymeword', 'score':'0.4'}, {}...]
 			scans = s_list[result_word]		# i.e. list of matches for the result topic word [{'scans_with':'desiredscanword', 'score':'1'}, {}...]
 			combined_list_for_result_word = [
-						{	'scans_with': s['scans_with'],
+						{	
+							'scans_with': s['scans_with'],
 							'rhymes_with': r['rhymes_with'],
 							'score':r['score']*s['score']
 						}
@@ -509,6 +771,10 @@ def word_finder(rhymes_with=[],
 		# = [('bastard', {'rhymes_with': 'drunkard', 'scans_with': 'biter', 'score': 0.2}),
  		#		('yogurt', {'rhymes_with': 'drunkard', 'scans_with': 'biter', 'score': 0.2})]
 
+
+
+
+######### GENERIC FUNCTIONS ##########
 
 def find_identical_tuple_codes(word_list_with_codes):
 	"""
@@ -544,6 +810,35 @@ def word_similarity(word1, word2):
 		return wordnet.similarity(a, b) 
 	except:
 		return 0
+
+
+
+
+########## LIVE IDEAS FEED ##########
+def find_mutual_collocations(wordlist):
+	"""
+	Given list of words, convert to set, and return list of mutual collocations
+	between any pairs of words
+	"""
+	from stored_assets import stopwords
+	collocations = {}
+	for w in list(set(wordlist)):
+		c_list = get_general_collocations_from_input(w)
+		for c in c_list:
+			collocations[c] = collocations.get(c,0) + 1
+	print collocations
+	return [w for w in collocations if collocations[w]>1 if w not in wordlist and w not in stopwords]
+
+
+
+########## SENTENCE SCANNER ##########
+def scan_sentence_for_ideas(sentence):
+	"""
+	Given sentence by AJAX, generate substitutions, ideas etc. using other functions
+	"""
+	None
+
+
 
 
 # Given a sentence, finds substitute words (alliteration)
