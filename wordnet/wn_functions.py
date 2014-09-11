@@ -506,106 +506,51 @@ def find_sound_matches_given_concepts(word_list, n=1, threshold=0.85):
 
 ######### WORD FINDER FUNCTIONS ##########
 
-def find_rhyme_matches_given_wordlist_and_conditionals(word_list, conditionals):
+def find_matches_given_base_words_and_conditionals(word_list=[], conditionals=[], mode=['rhyme','alliterate','sound','scan'][0]):
 	"""
-	Input: word list [mat, pat, dog, rug], condition word(s) ['cat','log']
-	Output: dictionary of results --> {'mat': {'rhymes_with':'cat', 'score', 1}, {'rhymes_with':'log', 'score': 0}...]
-	Given a word list (which is generated based on some requested topic(s)) and given some conditional rhyming words
-	(i.e. words we want to rhyme with) we pull out all rhyming pairs, and give them scores.
-	"""
-	import rhyme_score
-	reload(rhyme_score)
-	from nltk.corpus import cmudict
-	pronunciations = cmudict.dict()
-
-	if type(conditionals)==str:
-		conditionals = [conditionals]
-	
-	# output = []
-	output = {}
-	
-	for topic_word in word_list:
-		output[topic_word] = []
-		for rhyme_word in conditionals:
-			score = rhyme_score.words_rhyme_score(rhyme_word, topic_word, pronunciations) or 0
-			output[topic_word].append({'rhymes_with':rhyme_word, 'score':score}) if score>0 else None
-			# i.e. {'mat': [{'rhymes_with':'cat', 'score', 1}, {'rhymes_with':'log', 'score': 0}...] }
-
-	return output
-
-def find_scan_matches_given_wordlist_and_conditionals(word_list, conditionals):
-	"""
-	Input: word list [mat, pat, obtuse, volcanic], condition word(s) ['extreme','volcano']
-	Output: dictionary of results --> {'mat': [{'scans_with':'volcano', 'score', 0}, {... } ] ,  'obtuse':[{'scans_with':'extreme', 'score': 1}, { }  ]...}
-	Given a word list (which is generated based on some requested topic(s)) and given some conditional rhyming words
-	(i.e. words we want to rhyme with) we pull out all pairs with same scan pattern.
+	Input: word list (generated previously by expanding some topic set), and conditionals (e.g. words to rhyme with, and mode (one of 'rhyme', 'alliterate' etc.) 
+	Output: {'mat': [{'base':'volcano', 'score', 0}, {... } ] ,  'obtuse':[{'base':'extreme', 'score': 1}, { }  ]...}
+	Given a word list (which is generated based on some requested topic(s)) and given some conditional words,
+	and a mode (rhyme, alliterate, sound, scan), we pull out all pairs of words and score them.
+	Only words with scores > 0 are returned.
 	"""
 	import rhyme_score
 	reload(rhyme_score)
 	from nltk.corpus import cmudict
 	pronunciations = cmudict.dict()
 
-	if type(conditionals)==str:
-		conditionals = [conditionals]
-	# output = []
+	conditionals = [conditionals] if type(conditionals)==str else conditionals
+	word_list = [word_list] if type(word_list)==str else word_list
 	output = {}
+
+	# Go through all topic words
 	for topic_word in word_list:
-		output[topic_word] = []
-		for scan_word in conditionals:		
-			score = rhyme_score.words_scan_score(scan_word, topic_word, pronunciations) or 0
-			output[topic_word].append({'scans_with':scan_word, 'score':score}) if score>0 else None
+		for condition_word in conditionals:
+
+			# Calculate score for each word
+			if mode=='rhyme':	
+				score = rhyme_score.words_rhyme_score(condition_word, topic_word, pronunciations) or 0
+				min_score, max_score = 0.01, 1.01
+			if mode=='alliterate':	
+				score = rhyme_score.words_alliterate_score(condition_word, topic_word, pronunciations) or 0
+				min_score, max_score = 1, 4 
+			if mode=='sound':	
+				score = rhyme_score.words_same_sounds_score(condition_word, topic_word, pronunciations) or 0
+				min_score, max_score = 0.7, 1.01
+			if mode=='scan':	
+				score = rhyme_score.words_scan_score(condition_word, topic_word, pronunciations) or 0
+				min_score, max_score = 0.01, 1.01
+			
+			# add result if score was in correct range
+			if score>=min_score and score<=max_score:
+				# For the first time we  encounter this topic word...
+				if topic_word not in output:
+					output[topic_word] = []
+				# Every time, append result
+				output[topic_word].append({'base':condition_word, 'score':score})
+				
 	return output
-	# i.e. {'mat': [{'scans_with':'volcano', 'score', 0}, {'scans_with':'extreme', 'score', 0} ] ,  'obtuse':[{'scans_with':'extreme', 'score': 1}, {'scans_with':'volcano', 'score', 0}  ]...}
-
-def find_sound_matches_given_wordlist_and_conditionals(word_list, conditionals):
-	"""
-	Input: word list [mat, pat, obtuse, trees], condition word(s) ['extreme','volcano']
-	Output: dictionary of results --> {'trees': [{'shares_sounds':'extreme', 'score', 0.6}, {... } ] ,  'obtuse':[{'scans_with':'extreme', 'score': 0.2}, { }  ]...}
-	Given a word list (which is generated based on some requested topic(s)) and given some conditional sounds-like words
-	(i.e. words we want to sound like) we pull out all pairs with similar sounds
-	"""
-	import rhyme_score
-	reload(rhyme_score)
-	from nltk.corpus import cmudict
-	pronunciations = cmudict.dict()
-
-	if type(conditionals)==str:
-		conditionals = [conditionals]
-	# output = []
-	output = {}
-	for topic_word in word_list:
-		output[topic_word] = []
-		for sounds_like_word in conditionals:		
-			score = rhyme_score.words_same_sounds_score(sounds_like_word, topic_word, pronunciations) or 0
-			output[topic_word].append({'shares_sounds':sounds_like_word, 'score':score}) if score>0.8 else None
-	return output
-	# i.e. [{'mat': {'trees': [{'shares_sounds':'extreme', 'score', 0.6}, {... } ] ,  'obtuse':[{'scans_with':'extreme', 'score': 0.2}, { }  ]...}
-
-
-def find_alliteration_matches_given_wordlist_and_conditionals(word_list, conditionals):
-	"""
-	Input: word list [mat, pat, obtuse, trees], condition word(s) ['man','obtain']
-	Output: dictionary of results --> {'mat': [{'alliterates_with':'man', 'score', 2}, {... } ] ,  'obtuse':[{'alliterates_with':'obscure', 'score': 3.5}, { }  ]...}
-	Given a word list (which is generated based on some requested topic(s)) and given some conditional alliterative words
-	(i.e. words we want to start with same letters) we pull out all pairs with alliteration going on
-	"""
-	import rhyme_score
-	reload(rhyme_score)
-	from nltk.corpus import cmudict
-	pronunciations = cmudict.dict()
-
-	if type(conditionals)==str:
-		conditionals = [conditionals]
-	# output = []
-	output = {}
-	for topic_word in word_list:
-		output[topic_word] = []
-		for alliterate_word in conditionals:		
-			score = rhyme_score.words_alliterate_score(alliterate_word, topic_word, pronunciations) or 0
-			output[topic_word].append({'alliterates_with':alliterate_word, 'score':score}) if score>=1 and score<=4 else None
-	return output
-	# i.e. [{'mat': {'trees': [{'shares_sounds':'extreme', 'score', 0.6}, {... } ] ,  'obtuse':[{'scans_with':'extreme', 'score': 0.2}, { }  ]...}
-
+	# i.e. {'mat': [{'base':'volcano', 'score', 0}, {... } ] ,  'obtuse':[{'base':'extreme', 'score': 1}, { }  ]...}
 
 
 def word_finder(mode=['rhyme','alliterate','sound','scan'][0],
@@ -615,6 +560,8 @@ def word_finder(mode=['rhyme','alliterate','sound','scan'][0],
 				base_POS='any',
 
 				secondary_scans_with=[],
+
+				include_common_rhymes=False,
 
 				topics=[],
 				topics_extend_level=[0,1,2][0],
@@ -628,7 +575,7 @@ def word_finder(mode=['rhyme','alliterate','sound','scan'][0],
 		4 Scan with
 	The target needs to be constrained within a certain subject (topic) set by user (and can be expanded to various degrees)
 	For 1, 2, 3 the user can optionally supply a 'scan with' argument
-	User can provide a POS for the output word
+	TODO: User can provide a POS for the output word
 	"""
 	# Housekeeping
 	original_topics = [x for x in topics]
@@ -642,136 +589,41 @@ def word_finder(mode=['rhyme','alliterate','sound','scan'][0],
 	topics = extend_words_by_level(word_list = topics, level=topics_extend_level)
 	# --> Base word	
 	base = extend_words_by_level(word_list = base, level=base_extend_level)
+
+	# Include common rhymes in topic list if required
+	if include_common_rhymes:
+		from stored_assets import common_rhyming_words
+		topics.extend(common_rhyming_words)
 	
-	# If looking to find rhymes/alliterations/sounds
-	if mode=='rhyme':
-		primary_list = find_rhyme_matches_given_wordlist_and_conditionals(word_list = topics, conditionals = base)
-	if mode=='alliterate':
-		primary_list= find_alliteration_matches_given_wordlist_and_conditionals(word_list = topics, conditionals = base)
-	if mode=='sound':
-		primary_list = find_sound_matches_given_wordlist_and_conditionals(word_list = topics, conditionals = base)
-	if mode=='scan':  # Note that we won't have a secondary scans with argument here, restricted by HTML layout
-		primary_list = find_scan_matches_given_wordlist_and_conditionals(word_list = topics, conditionals = base)
+	# Get primary list of results depending on mode
+	primary_list = find_matches_given_base_words_and_conditionals(word_list = topics, conditionals = base, mode=mode)
 	
 	# If we are not looking to combine any additional scan scores, we have then finished our collection of results now
 	if not secondary_scans_with:
 		collection_of_results = primary_list
 
-	# Combine scans and rhymes scores
+	# Combine scan score with the primary score if we have a secondary_scans_with supplied
 	else:
-		collection_of_results = {}
-		for result_word in primary_list:
-			collection_of_results[result_word] = []  # set up blank list to populate
-			rhymes = r_list[result_word]   # i.e. list of matches for the result topic word [{'rhymes_with':'desiredrhymeword', 'score':'0.4'}, {}...]
-			scans = s_list[result_word]		# i.e. list of matches for the result topic word [{'scans_with':'desiredscanword', 'score':'1'}, {}...]
-			combined_list_for_result_word = [
-						{	
-							'scans_with': s['scans_with'],
-							'rhymes_with': r['rhymes_with'],
-							'score':r['score']*s['score']
-						}
-						for r in rhymes for s in scans
-					]  #i.e. a list of these for all combos of scan/rhyme conditions:  {'rhymes_with': 'drunkard', 'scans_with': 'biter', 'score': 0.2}
-			collection_of_results[result_word] = combined_list_for_result_word   # store it in the big collection for this result word
-	
-	return sorted( [(word, combo) for word in collection_of_results for combo in collection_of_results[word] if combo['score']!=0] , key=lambda x: x[1]['score'])
-		# i.e. list of tuples where tuple[0] is result, tuple[1] is info about the result including score
-		# = [('bastard', {'rhymes_with': 'drunkard', 'scans_with': 'biter', 'score': 0.2}),
- 		#		('yogurt', {'rhymes_with': 'drunkard', 'scans_with': 'biter', 'score': 0.2})]
+		import rhyme_score
+		reload(rhyme_score)
+		from nltk.corpus import cmudict
+		pronunciations = cmudict.dict()
+		secondary_list = {}  # This is the new list to fill out
+		for key in primary_list:  # i.e. primary list is {'represent': [{'base': 'runner', 'score': 0.66}, {'base': 'run', 'score': 0.9}], ...}
+			w1 = key  # i.e. 'represent'
+			w2 = secondary_scans_with[0]  # Only scan with one word (TODO? user can supply list? Just loop through these if so)
+			scan_score = rhyme_score.words_scan_score(w1,w2,pronunciations)
+			if scan_score>0:
+				# We want to multiple scan score by other scores, e.g. for runner & run
+				secondary_list[key] = []
+				for base_item in primary_list[key]: # e.g. [{'base': 'runner', 'score': 0.66}, {'base': 'run', 'score': 0.9}]
+					original_score = base_item['score']
+					base_word = base_item['base']
+					secondary_list[key].append({'base':base_word, 'score':original_score*1.0*scan_score})
+		collection_of_results = secondary_list
 
-
-def word_finder_old(rhymes_with=[],
-				rhymes_with_extend=False,
-				rhymes_with_POS='any',
-
-				scans_with=[],
-
-				topics=[],
-				topics_extend=False,
-
-				output_POS='any'):
-	"""
-	Wrapper for user to find word given inputs from AJAX
-	User enters a base word (or words) which the target word needs to either:
-		1 Rhyme with
-		2 Alliterate with
-		3 Share similar sounds with
-		4 Scan with
-	The target needs to be constrained within a certain subject (topic) set by user (and can be expanded to various degrees)
-	For 1, 2, 3 the user can optionally supply a 'scan with' argument
-	User can provide a POS for the output word
-	"""
-	result_set = []
-	original_topics = [x for x in topics]
-	original_rhymes_with = [x for x in rhymes_with]
-
-	# Either rhyme with specific word(s) or extend the rhyme set given some part of speech
-	if type(rhymes_with)==str:
-		rhymes_with = [rhymes_with]
-	if rhymes_with_extend:
-		rhymes_with = extend_words(rhymes_with, POS=rhymes_with_POS, fns=[
-											'get_antonyms_from_input',
-											'get_synonyms_from_input',
-											'get_relations_from_input',
-											'get_similar_english_vocab_from_input',
-											])
-
-	# Extend the topic set (level should be set by the user)
-	if type(topics)==str:
-		topics = [topics]
-	topics = expand_word_inflections(topics)
-	topics = extend_words(topics, fns=[
-											'get_antonyms_from_input',
-											'get_synonyms_from_input',
-											'get_relations_from_input',
-											# 'get_similar_simple_nouns_from_input',
-										], POS=output_POS)  # Extend topics by one level always (for now - revise this perhaps TODO)
-	if topics_extend:
-		topics = extend_words(topics, fns=['get_synonyms_from_input'], POS=output_POS)
-		topics = topics + extend_words(original_topics, fns=[
-											'get_similar_english_vocab_from_input',
-											# 'get_general_collocations_from_input'
-															], POS=output_POS)
-		topics = list(set(topics))
-
-	# Find rhymes and return if we are not looking at scans
-	if rhymes_with:
-		r_list = find_rhyme_matches_given_wordlist_and_conditionals(word_list = topics, conditionals = rhymes_with)
-		if not scans_with:
-			collection_of_results = r_list
-			
-
-	# Find scans, and return if we are not looking at rhymes
-	if scans_with:
-		s_list = find_scan_matches_given_wordlist_and_conditionals(word_list = topics, conditionals = scans_with)
-		result_set.append(s_list)
-		if not rhymes_with:
-			collection_of_results = s_list
-			
-
-	# Combine scans and rhymes scores
-	if rhymes_with and scans_with:
-		collection_of_results = {}
-		for result_word in r_list:
-			collection_of_results[result_word] = []  # set up blank list to populate
-			rhymes = r_list[result_word]   # i.e. list of matches for the result topic word [{'rhymes_with':'desiredrhymeword', 'score':'0.4'}, {}...]
-			scans = s_list[result_word]		# i.e. list of matches for the result topic word [{'scans_with':'desiredscanword', 'score':'1'}, {}...]
-			combined_list_for_result_word = [
-						{	
-							'scans_with': s['scans_with'],
-							'rhymes_with': r['rhymes_with'],
-							'score':r['score']*s['score']
-						}
-						for r in rhymes for s in scans
-					]  #i.e. a list of these for all combos of scan/rhyme conditions:  {'rhymes_with': 'drunkard', 'scans_with': 'biter', 'score': 0.2}
-			collection_of_results[result_word] = combined_list_for_result_word   # store it in the big collection for this result word
-	
-	return sorted( [(word, combo) for word in collection_of_results for combo in collection_of_results[word] if combo['score']!=0] , key=lambda x: x[1]['score'])
-		# i.e. list of tuples where tuple[0] is result, tuple[1] is info about the result including score
-		# = [('bastard', {'rhymes_with': 'drunkard', 'scans_with': 'biter', 'score': 0.2}),
- 		#		('yogurt', {'rhymes_with': 'drunkard', 'scans_with': 'biter', 'score': 0.2})]
-
-
+	# Return results sorted by their score
+	return sorted( [(word, combo) for word in collection_of_results for combo in collection_of_results[word] if combo['score']!=0] , key=lambda x: (x[1]['score'], len(x[0]) ) )
 
 
 ######### GENERIC FUNCTIONS ##########
@@ -837,8 +689,59 @@ def scan_sentence_for_ideas(sentence):
 	Given sentence by AJAX, generate substitutions, ideas etc. using other functions
 	"""
 	None
+	# 
 
+def get_sentence_synonyms(sentence):
+	"""
+	Given a single sentence, find synonyms (possible replacements) for each word_list_with_codes
+	Split sentence into tokens
+	Get POS for each word
+	Find synonyms for appropriate words
+	Input is a sentence string
+	Output is list of tuples, each word in sentence=tuple[0], list of alternatives is tuple[1]
+	"""
+	output = []
 
+	if type(sentence)!=str:
+		print "Sentence must be a string."
+		return 0
+
+	# Parse the sentence
+	from pattern.en import parse
+	words = parse( sentence,
+					tokenize = True,         # Split punctuation marks from words?
+				       tags = True,         # Parse part-of-speech tags? (NN, JJ, ...)
+				     chunks = True,         # Parse chunks? (NP, VP, PNP, ...)
+				  relations = False,        # Parse chunk relations? (-SBJ, -OBJ, ...)
+				    lemmata = True,        # Parse lemmata? (ate => eat)
+				   encoding = 'utf-8'       # Input string encoding.
+					).split()[0]  # We only take '0' index as there should only be one sentence
+
+	# Find which words are valid words to get synonyms for
+	#--> not in stopwords, one of VB/JJ/NN/RB
+	from stored_assets import stopwords
+	counter = 0
+	for word in words:
+		# i.e. [u'walked', u'VBD', u'B-VP', u'O', u'walk']
+		POS = word[1][0:2]
+		POS_clean = {
+					'VB':'v',  # verb
+					'JJ':'s',  # adj
+					'NN':'n',  # noun
+					'RB':'r'   # adverb
+				}.get(POS, None)
+		if word[0] not in stopwords:
+			output.append([word[0],POS_clean])
+		else:
+			output.append([word[0],None])
+		# So output has the format:
+	print output
+
+	# for word in output:
+	# 	if word[1]:
+	# 		print word
+
+			
 
 
 # Given a sentence, finds substitute words (alliteration)

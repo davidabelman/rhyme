@@ -1,6 +1,13 @@
 #!/usr/bin/env python
 #coding: utf8 
 
+"""
+Creates list of common rhyming words according to online list
+Saves list [of, words] as a pickle (created/common_rhyming_words.p)
+"""
+
+from general_functions import save_pickle
+
 online_to_parse = [
 {"Band":"2Pac","W1":"Me/See","W2":"Be/Me","W3":"Down/Now","W4":"Baby/Me","W5":"Do/You","Q1":"Combat/That","Q2":"Go/Through","Q3":"Me/See","Q4":"Better/Together","Q5":"Be/Me"},
 {"Band":"ABBA","W1":"Go/Know","W2":"Free/Me","W3":"Through/You","W4":"Through/You","W5":"Say/Way","Q1":"Light/Night","Q2":"Through/You","Q3":"Strong/Wrong","Q4":"Stay/Way","Q5":"Smile/While"},
@@ -106,6 +113,8 @@ online_to_parse = [
 {"Band":"Van Halen","W1":"Me/See","W2":"Go/Know","W3":"Through/You","W4":"Around/Down","W5":"True/You","Q1":"Through/You","Q2":"Satisfied/Tried","Q3":"Roll/Soul","Q4":"Mind/Time","Q5":"Me/Sea"}
 ]
 
+swear_words = ['fuck', 'shit']
+
 # Parse the online thing (from source code of http://www.slate.com/articles/arts/culturebox/2014/02/justin_bieber_and_the_beatles_they_both_liked_to_rhyme_the_same_words.html)
 pairs = []
 for entry in online_to_parse:
@@ -117,5 +126,7 @@ for pair in pairs:
 	words = pair.split('/')
 	for word in words:
 		unique_words[word] = unique_words.get(word,0) + 1   # e.g. {'Do':2, 'You':1 etc.}
-print unique_words
-print sorted([(unique_words[key], key) for key in unique_words])
+
+common_words = [ x.lower() for x in unique_words if unique_words[x]>=3 and x.lower() not in swear_words ]
+
+save_pickle(common_words, 'created/common_rhyming_words.p')

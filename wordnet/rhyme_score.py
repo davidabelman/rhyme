@@ -354,8 +354,6 @@ def words_alliterate_score(w1, w2, pronunciations):
 				return 0
 		else:
 			score+=1
-			print "Adding one for first letter"
-			print score
 
 		# Loop through all remaining sounds in shorter word and compare to longer word
 		for i in range(L-1):
