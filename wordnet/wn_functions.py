@@ -823,14 +823,15 @@ def group_sentence_synonyms(sentence_expanded, mode=['alliterate','vowel','scan'
 				collection[index][1].append([original_word[0],[]])
 				# Loop through alternatives:
 				for variant in original_word[2]:
-					# Get pronunciation of first word if double barreled
-					variant_first_word = re.split('-|_| ',variant)[0]
-					p = pronunciations.get(variant_first_word)  
-					if p:
-						p=p[0]  # TODO: only looking at basic pronunciation here. OK for alliteration though
-						start_sound = remove_number(p[0])  # First sound only, ignore stress
-						if start_sound==phoneme:
-							collection[index][1][-1][1].append(variant)  # Add variant to latest word in the variant list
+					# Only use 1-worded variations
+					variant_split = re.split('-|_| ',variant)
+					if len(variant_split)==1:
+						p = pronunciations.get(variant_split[0])  
+						if p:
+							p=p[0]  # TODO: only looking at basic pronunciation here. OK for alliteration though
+							start_sound = remove_number(p[0])  # First sound only, ignore stress
+							if start_sound==phoneme:
+								collection[index][1][-1][1].append(variant)  # Add variant to latest word in the variant list
 	
 	# Group synonyms by primary vowel sound
 	elif mode=='vowel':
