@@ -700,6 +700,7 @@ def get_sentence_synonyms(sentence):
 	Input is a sentence string
 	Output is list of tuples, each word in sentence=tuple[0], list of alternatives is tuple[1]
 	"""
+	intermediate = []
 	output = []
 
 	if type(sentence)!=str:
@@ -730,19 +731,76 @@ def get_sentence_synonyms(sentence):
 					'NN':'n',  # noun
 					'RB':'r'   # adverb
 				}.get(POS, None)
-		if word[0] not in stopwords:
-			output.append([word[0],POS_clean])
+		if word[4] not in stopwords:  # word[4] is lemmatized version of word
+			intermediate.append([word[4],POS_clean])
 		else:
-			output.append([word[0],None])
+			intermediate.append([word[4],None])  # we don't want to replace any stopwords
 		# So output has the format:
-	print output
+		# [[u'Quickly', 'r'], [u'send', 'v'], [u'a', None], [u'short', 's'], [u'message', 'n'], [u'to', None], [u'you', None]]	
 
-	# for word in output:
-	# 	if word[1]:
-	# 		print word
+	for word in intermediate:
+		w=word[0]
+		POS=word[1]
+		if POS:  
+			if POS=='n':
+				# Find synonyms (? - test with and without this. more often that not returns crap? TODO)
+				extension = [w]
+				#extension = extend_words([w], POS=POS, fns=['get_synonyms_from_input'])
+				
+			else:
+				# Find synonyms and relations
+				extension = x = extend_words([w], POS=POS, fns=[
+														'get_synonyms_from_input',
+														'get_relations_from_input',
+														#'get_similar_english_vocab_from_input',
+													])
+			output.append([w,POS,extension])
+		else:
+			output.append([w,POS,[w]])
 
-			
+	return output
 
+def group_sentence_synonyms(sentence_expanded, mode=['alliterate','vowel','scan'][0]):
+	"""
+	Input: sentence with alternative synonyms for some words:
+	[
+	 [[u'my', None, [u'my']],
+	 [u'house', 'n', [u'house']],
+	 [u'tremble',
+	  'v',	[u'tremble',
+	   'palpitate',
+	   'quiver',
+	   'thrill',
+	   'throb',
+	   'agitate',
+	   'shudder',
+	   'shiver',
+	   'quake',
+	   'shake',
+	   'harang',
+	   'hilter']],
+    ]
+    Output: 2 dimensional, 1st dimension is the grouping, 2nd is the word 
+    	[ H , 
+    		['my', [] ],
+    		['house', ['house'] ], 
+    		['tremble', ['harang', 'hilter'] ] 
+    	],
+    	[ P , 
+    		['my', [] ],
+    		['house', [] ], 
+    		['tremble', ['palpitate'] ] 
+    	], etc...
+
+	Groups the sentence synonyms according to a mode:
+	Alliterate - groups according to first sound
+	Vowel - groups according to stressed vowel sound
+	Scan - groups according to scan pattern
+	"""
+	if mode=='alliterate':
+		from stored_assets import list_of_all_sounds
+		for phoneme in list_of_all_sounds:
+			None
 
 # Given a sentence, finds substitute words (alliteration)
 # Find near rhymes, sounds likes
