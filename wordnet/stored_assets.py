@@ -46,3 +46,19 @@ list_of_all_sounds = [
         'Y',
         'Z',
         'ZH']
+list_of_vowel_sounds = [
+		'AA',
+        'AE',
+        'AH',
+        'AO',
+        'AW',
+        'AY',
+        'EH',
+        'ER',
+        'EY',
+        'IH',
+        'IY',
+        'OW',
+        'OY',
+        'UH',
+        'UW']

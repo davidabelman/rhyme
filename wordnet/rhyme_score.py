@@ -198,10 +198,6 @@ def words_scan_score(w1, w2, pronunciations):
 		# Can't find words in CMU dict
 		return 0
 
-	# Use CMU dict
-	# p1_list = pronunciations.get(w1)  # ['AE2', 'N', 'AH0', 'K', 'D', 'OW1', 'T', 'AH0', 'L']
-	# p2_list = pronunciations.get(w2)
-
 	if p1_list and p2_list:
 		# Look for exact scan equality
 		scan1 = [letter[-1] for letter in p1_list if letter[-1] in ('0', '1', '2')]

@@ -760,7 +760,7 @@ def get_sentence_synonyms(sentence):
 
 	return output
 
-def group_sentence_synonyms(sentence_expanded, mode=['alliterate','vowel','scan'][0]):
+def group_sentence_synonyms(sentence_expanded, mode=['alliterate','vowel','scan'][0], silent=False):
 	"""
 	Input: sentence with alternative synonyms for some words:
 	[
@@ -832,8 +832,39 @@ def group_sentence_synonyms(sentence_expanded, mode=['alliterate','vowel','scan'
 						if start_sound==phoneme:
 							collection[index][1][-1][1].append(variant)  # Add variant to latest word in the variant list
 	
+	# Group synonyms by primary vowel sound
+	elif mode=='vowel':
+		# Import phonemes to loop through
+		from stored_assets import list_of_vowel_sounds
+		for phoneme in list_of_vowel_sounds:
+			collection.append([phoneme, [] ])
+			# For each phoneme, we add each word of the sentence in turn, and then check its alternatives
+			for original_word in sentence_expanded:
+				index = len(collection)-1
+				# Add each original word within phoneme
+				collection[index][1].append([original_word[0],[]])
+				# Loop through alternatives:
+				for variant in original_word[2]:					
+					# Split words if double barrelled
+					variant_split = re.split('-|_| ',variant)
+					for v in variant_split:
+						p = pronunciations.get(v)
+						if p:
+							for p1 in p:
+								
+								try:
+									stress_syllable_index = [x[-1] for x in p1].index('1')
+									vowel = p1[stress_syllable_index][:-1]  # knock the '1' off the end
+									if vowel==phoneme:
+										collection[index][1][-1][1].append(variant)
+								except:
+									# No stress syllable, skip
+									None
+								
+
+
+
 	# Sort by how many synonyms per phoneme
-	
 	collection = sorted(
 		collection, 
 		key=lambda x: 		( 	
@@ -841,13 +872,13 @@ def group_sentence_synonyms(sentence_expanded, mode=['alliterate','vowel','scan'
 								len( [var for word in [z[1] for z in x[1]] for var in word] )    # total number of alternatives, secondary sort
 							) 
 						)
-	# collection = sorted(collection, key=lambda x: len( [var for word in [z[1] for z in x[1]] for var in word] ))
 
-	for phoneme in collection:
-		print "-----"
-		print phoneme[0]
-		for x in phoneme[1]:
-			print "    ",x
+	if not silent:
+		for phoneme in collection:
+			print "-----"
+			print phoneme[0]
+			for x in phoneme[1]:
+				print "    ",x
 
 	return collection
 
