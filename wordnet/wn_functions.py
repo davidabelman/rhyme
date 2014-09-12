@@ -723,7 +723,7 @@ def get_sentence_synonyms(sentence):
 	from stored_assets import stopwords
 	counter = 0
 	for word in words:
-		# i.e. [u'walked', u'VBD', u'B-VP', u'O', u'walk']
+		# i.e. word = [u'walked', u'VBD', u'B-VP', u'O', u'walk']
 		POS = word[1][0:2]
 		POS_clean = {
 					'VB':'v',  # verb
@@ -732,7 +732,7 @@ def get_sentence_synonyms(sentence):
 					'RB':'r'   # adverb
 				}.get(POS, None)
 		if word[4] not in stopwords:  # word[4] is lemmatized version of word
-			intermediate.append([word[4],POS_clean])
+			intermediate.append([word[4],POS_clean])  # word[0] or word[4], i.e. actual word, or lemmatized version? TODO
 		else:
 			intermediate.append([word[4],None])  # we don't want to replace any stopwords
 		# So output has the format:
@@ -849,9 +849,8 @@ def group_sentence_synonyms(sentence_expanded, mode=['alliterate','vowel','scan'
 					variant_split = re.split('-|_| ',variant)
 					for v in variant_split:
 						p = pronunciations.get(v)
-						if p:
-							for p1 in p:
-								
+						if p:  # i.e. if pronunciation exists
+							for p1 in p: # consider all different pronunciations			
 								try:
 									stress_syllable_index = [x[-1] for x in p1].index('1')
 									vowel = p1[stress_syllable_index][:-1]  # knock the '1' off the end
@@ -861,6 +860,47 @@ def group_sentence_synonyms(sentence_expanded, mode=['alliterate','vowel','scan'
 									# No stress syllable, skip
 									None
 								
+	elif mode=='scan':
+		def get_scan_pattern(phonemes):
+			"""
+			Gets phoneme scan pattern, converts 2-->0
+			Returns 1000 or 001 etc.
+			"""
+			import string
+			scan = [str(letter[-1]) for letter in phonemes if letter[-1] in ('0', '1', '2')]  # ['0'.'1','2','0']
+			scan_string = string.join(scan, '').replace('2','0')  # '0100'
+			first_stress = scan_string.index('1')
+			return scan_string[first_stress:]
+
+
+		# Import phonemes to loop through
+		from stored_assets import list_of_scan_patterns
+		for pattern in list_of_scan_patterns:
+			collection.append([pattern, [] ])
+			# For each pattern, we add each word of the sentence in turn, and then check its alternatives
+			for original_word in sentence_expanded:
+				index = len(collection)-1
+				# Add each original word within pattern
+				collection[index][1].append([original_word[0],[]])
+				# Loop through alternatives:
+				for variant in original_word[2]:					
+					# Split words if double barrelled. Ignore any which are double barreled (TODO? fix this? Or OK? Avoids mistakes, as hard to find dominant word otherwise, e.g. think_of)
+					variant_split = re.split('-|_| ',variant)
+					if len(variant_split)==1:
+						p = pronunciations.get(variant)
+						if p: # i.e. pronunciation exists
+							variant_patterns_added = [] # Keep track of ones we're adding so as not to add words twice
+							for p1 in p: # consider all different pronunciations	
+								try:		
+									variant_pattern = get_scan_pattern(p1)
+									if variant_pattern not in variant_patterns_added:  # Don't add the same word (different pronunciations) twice
+										if variant_pattern == pattern:
+											collection[index][1][-1][1].append(variant)
+											variant_patterns_added.append(variant_pattern)
+								except:
+									# No first stress so variant pattern doesn't work
+									None
+
 
 
 
