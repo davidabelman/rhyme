@@ -782,14 +782,18 @@ def group_sentence_synonyms(sentence_expanded, mode=['alliterate','vowel','scan'
     ]
     Output: 2 dimensional, 1st dimension is the grouping, 2nd is the word 
     	[ H , 
-    		['my', [] ],
-    		['house', ['house'] ], 
-    		['tremble', ['harang', 'hilter'] ] 
+    		[
+	    		['my', [] ],
+	    		['house', ['house'] ], 
+	    		['tremble', ['harang', 'hilter'] ] 
+    		]
     	],
     	[ P , 
-    		['my', [] ],
-    		['house', [] ], 
-    		['tremble', ['palpitate'] ] 
+    		[
+	    		['my', [] ],
+	    		['house', [] ], 
+	    		['tremble', ['palpitate'] ] 
+    		]
     	], etc...
 
 	Groups the sentence synonyms according to a mode:
@@ -797,10 +801,57 @@ def group_sentence_synonyms(sentence_expanded, mode=['alliterate','vowel','scan'
 	Vowel - groups according to stressed vowel sound
 	Scan - groups according to scan pattern
 	"""
+	import re
+	collection = []
+	# Remove numbers
+	def remove_number(x):
+		if x[-1] in ('0','1','2'):
+			return x[:-1]
+		else:
+			return x
+
+	# Alliteration collection of synonyms
 	if mode=='alliterate':
+		# Import phonemes to loop through
 		from stored_assets import list_of_all_sounds
 		for phoneme in list_of_all_sounds:
-			None
+			collection.append([phoneme, [] ])
+			# For each phoneme, we add each word of the sentence in turn, and then check its alternatives
+			for original_word in sentence_expanded:
+				index = len(collection)-1
+				# Add each original word within phoneme
+				collection[index][1].append([original_word[0],[]])
+				# Loop through alternatives:
+				for variant in original_word[2]:
+					# Get pronunciation of first word if double barreled
+					variant_first_word = re.split('-|_| ',variant)[0]
+					p = pronunciations.get(variant_first_word)  
+					if p:
+						p=p[0]  # TODO: only looking at basic pronunciation here. OK for alliteration though
+						start_sound = remove_number(p[0])  # First sound only, ignore stress
+						if start_sound==phoneme:
+							collection[index][1][-1][1].append(variant)  # Add variant to latest word in the variant list
+	
+	# Sort by how many synonyms per phoneme
+	
+	collection = sorted(
+		collection, 
+		key=lambda x: 		( 	
+								len( [1 for var in [z[1] for z in x[1]] if var] ) ,   # number of words with alternatives, primary sort
+								len( [var for word in [z[1] for z in x[1]] for var in word] )    # total number of alternatives, secondary sort
+							) 
+						)
+	# collection = sorted(collection, key=lambda x: len( [var for word in [z[1] for z in x[1]] for var in word] ))
+
+	for phoneme in collection:
+		print "-----"
+		print phoneme[0]
+		for x in phoneme[1]:
+			print "    ",x
+
+	return collection
+
+
 
 # Given a sentence, finds substitute words (alliteration)
 # Find near rhymes, sounds likes
