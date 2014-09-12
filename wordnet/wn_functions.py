@@ -901,10 +901,7 @@ def group_sentence_synonyms(sentence_expanded, mode=['alliterate','vowel','scan'
 									# No first stress so variant pattern doesn't work
 									None
 
-
-
-
-	# Sort by how many synonyms per phoneme
+	# Sort by how many variations per option (double sort = by number of words for which variation exists, then by how many variations exist overall)
 	collection = sorted(
 		collection, 
 		key=lambda x: 		( 	
@@ -913,6 +910,7 @@ def group_sentence_synonyms(sentence_expanded, mode=['alliterate','vowel','scan'
 							) 
 						)
 
+	# Print result to screen if required for debugging
 	if not silent:
 		for phoneme in collection:
 			print "-----"
