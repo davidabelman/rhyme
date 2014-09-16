@@ -1,0 +1,28 @@
+/*========================================================================*/
+/*GENERAL*/
+/*========================================================================*/
+#main_input {
+	font-size: 200%;
+	background: white;
+	border-color: white;
+}
+
+[contenteditable="true"] { 
+	padding: 10px; 
+	outline: 0px 
+	dashed #CCC; 
+}
+
+[contenteditable="true"]:hover { 
+	outline: 0px dashed #0090D2;
+}
+
+#main_output {
+	background-color: #eeddcc;
+	font-size: 300%;
+	padding: 1%;
+}
+
+span {
+	background-color: #ee99ff;
+}

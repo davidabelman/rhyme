@@ -1,5 +1,6 @@
 from nltk.corpus import wordnet as wn
 from nltk.corpus import cmudict
+import nltk.corpus.reader.wordnet
 from stored_assets import general_collocations
 pronunciations = cmudict.dict()
 
@@ -23,10 +24,16 @@ def get_synonyms_from_input(input_word, separate=False, primary_only=False, POS=
 		--> separate: determines whether we return a dictionary separating all the different forms, or whether to put them all together
 		--> primary_only: determines whether to only return lemmas for which input was the primary definition
 	"""
-	# If any spaces, switch to underscore
-	input_word = input_word.replace(" ","_")
 	output = {}
-	synsets = wn.synsets(input_word)
+	# Input word is synset
+	if type(input_word)==nltk.corpus.reader.wordnet.Synset:
+		synsets = [input_word]
+	# Input word is string
+	else:
+		# If any spaces, switch to underscore
+		input_word = input_word.replace(" ","_")
+		synsets = wn.synsets(input_word)
+
 	for synset in synsets:
 		if synset.pos in POS or POS=='any':
 			lemmas = synset.lemma_names
@@ -92,8 +99,13 @@ def get_relations_from_input(input_word, POS='any'):
 	"""
 	output = []	
 	final_synset_collection = []
-	input_word = input_word.replace(" ","_")
-	synsets = wn.synsets(input_word)
+		
+	if type(input_word)==nltk.corpus.reader.wordnet.Synset:
+		synsets=[input_word]
+	else:
+		input_word = input_word.replace(" ","_")
+		synsets = wn.synsets(input_word)
+
 	for synset in synsets:
 		if synset.pos in POS or POS=='any':
 			final_synset_collection.extend(synset.entailments())
@@ -108,6 +120,7 @@ def get_relations_from_input(input_word, POS='any'):
 			final_synset_collection.extend(synset.similar_tos())
 			final_synset_collection.extend(synset.substance_holonyms())
 			final_synset_collection.extend(synset.substance_meronyms())
+	print final_synset_collection
 	for synset in final_synset_collection:
 		for lemma in synset.lemma_names:
 			output.append(lemma)
@@ -202,6 +215,11 @@ def extend_words(word_list, n = 1, POS='any', fns=[		'get_antonyms_from_input',
 	extend_words(word_list, n = 1, fns=['get_synonyms_from_input', 'get_relations_from_input'])
 	extend_words(_, n = 1, fns=['get_synonyms_from_input'])
 	i.e. only finding one set of relations, then applying another synonyms round on this
+	TODO:
+		allow input to be list of synonyms, which the user has chosen through the interface
+		i.e. allows user to limit out certain unwanted meanings (cat=animal vs. cat=vomit)
+		everything will be done in terms of synsets, and only at the end are these converted to lemmas
+		if this is the case (i.e. user restricted meanings), we may not be able to use the non-wordnet methods (collocations, english vocab) within the expansion
 	"""
 	# Functions to loop through (excludes any not in arguments though)
 	functions = [	
@@ -325,7 +343,7 @@ def expand_word_inflections(word_list, include_same_stress_variations=True):
 def find_exact_rhymes_given_wordlist(word_list):
 	"""
 	Given some input list of words, finds any exact rhyming collections
-	Uses exact-rhyme lookup table I have, but note that this doesn't do near rhymes, and many words aren't listed
+	Uses exact-rhyme lookup table I have, but note that this doesn't do near rhymes (TODO), and many words aren't listed
 	Input: [cat, dog, mat, hog, pig, log]
 	Ouput: [ [cat, mat], [dog, hog, log] ]
 	"""
@@ -684,12 +702,6 @@ def find_mutual_collocations(wordlist):
 
 
 ########## SENTENCE SCANNER ##########
-def scan_sentence_for_ideas(sentence):
-	"""
-	Given sentence by AJAX, generate substitutions, ideas etc. using other functions
-	"""
-	None
-	# 
 
 def get_sentence_synonyms(sentence):
 	"""
@@ -749,11 +761,14 @@ def get_sentence_synonyms(sentence):
 				
 			else:
 				# Find synonyms and relations
-				extension = x = extend_words([w], POS=POS, fns=[
+				extension = extend_words([w], POS=POS, fns=[
 														'get_synonyms_from_input',
 														'get_relations_from_input',
+														'get_antonyms_from_input',
+														#'get_general_collocations_from_input'
 														#'get_similar_english_vocab_from_input',
 													])
+				print "HERE:", w, extension
 			output.append([w,POS,extension])
 		else:
 			output.append([w,POS,[w]])
@@ -848,18 +863,19 @@ def group_sentence_synonyms(sentence_expanded, mode=['alliterate','vowel','scan'
 				for variant in original_word[2]:					
 					# Split words if double barrelled
 					variant_split = re.split('-|_| ',variant)
-					for v in variant_split:
-						p = pronunciations.get(v)
-						if p:  # i.e. if pronunciation exists
-							for p1 in p: # consider all different pronunciations			
-								try:
-									stress_syllable_index = [x[-1] for x in p1].index('1')
-									vowel = p1[stress_syllable_index][:-1]  # knock the '1' off the end
-									if vowel==phoneme:
-										collection[index][1][-1][1].append(variant)
-								except:
-									# No stress syllable, skip
-									None
+					if len(variant_split)==1:  # Only consider 1-worded variations
+						for v in variant_split:  # Only ever 1 (for now) so not really needed
+							p = pronunciations.get(v)
+							if p:  # i.e. if pronunciation exists
+								for p1 in p: # consider all different pronunciations			
+									try:
+										stress_syllable_index = [x[-1] for x in p1].index('1')
+										vowel = p1[stress_syllable_index][:-1]  # knock the '1' off the end
+										if vowel==phoneme:
+											collection[index][1][-1][1].append(variant)
+									except:
+										# No stress syllable, skip
+										None
 								
 	elif mode=='scan':
 		def get_scan_pattern(phonemes):
@@ -949,6 +965,7 @@ def group_sentence_synonyms(sentence_expanded, mode=['alliterate','vowel','scan'
 
 # Find similar sounding words (alliteration, anaphones) given theme
 
+"""DONE - need to improve..."""
 # Option to include common rhyming words in the rhyming processes (wordnet excludes 'too', 'but', 'you' etc.)
 
 
@@ -967,6 +984,9 @@ def group_sentence_synonyms(sentence_expanded, mode=['alliterate','vowel','scan'
 # When a noun is entered by a user within a word expansion we can also throw in any other similar nouns
 # e.g. ocean and fish are related, duck and egg are related
 
+
+# Do topic modelling of all wordnet definitions? Can then group the synsets according to topic, save this, and use these
+# to find related synsets...?
 
 """
 What it can do:

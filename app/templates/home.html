@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block body %}
+
+<div class='jumbotron'>
+	<h1>Let's create something.</h1>
+</div>
+
+<!-- <textarea class="form-control" id='main_input' rows="3"></textarea> -->
+
+<!-- <div class='container-fluid'>
+	<span id='main_output'></span>
+</div> -->
+
+<div class='container-fluid'>
+	<div id="main_input" contenteditable="true">
+		Writing will go here
+	</div>
+</div>
+
+<script>
+	var convert_text_to_spans = function(text) {
+		// Removes spans from an HTML string, then adds spans to all words
+
+		var text = text.split("<div>").join(" <div> ");
+		var text = text.split("</div>").join(" </div> ");
+		// Remove last space
+		// var text = html.split("&nbsp;").join("");
+
+		// Get rid of any spans already there
+		var text = text.split("<span>").join("");
+		var text = text.split("</span>").join("");
+
+		// Loop through each div (i.e. each line)
+		var text_list = text.split(' '),
+        len = text_list.length,
+        result = []; 
+
+	    for( var i = 0; i < len; i++ ) {
+	        result[i] = '<span>' + text_list[i] + '</span>';
+	    }
+	    var text = result.join(' ');
+	    return text;
+	}
+
+	function focus_at_end_of_input_form(input_id) {
+	  // Focus at end of text of an input element
+	  $(input_id).prop("selectionStart", $(input_id).val().length) // set caret to length (end)
+	       .focus();
+	}
+	function placeCaretAtEnd(el) {
+	    el.focus();
+	    if (typeof window.getSelection != "undefined"
+	            && typeof document.createRange != "undefined") {
+	        var range = document.createRange();
+	        range.selectNodeContents(el);
+	        range.collapse(false);
+	        var sel = window.getSelection();
+	        sel.removeAllRanges();
+	        sel.addRange(range);
+	    } else if (typeof document.body.createTextRange != "undefined") {
+	        var textRange = document.body.createTextRange();
+	        textRange.moveToElementText(el);
+	        textRange.collapse(false);
+	        textRange.select();
+	    }
+	}
+
+
+	$('#main_input').keyup(
+		function(key) {
+			if (key.keyCode==32 || key.keyCode==13) {  // Space was pressed
+				var whole_text = $('#main_input').html();
+				console.log("The HTML extracted is:", whole_text)
+				$('#main_input').html(convert_text_to_spans(whole_text))
+				var whole_text = $('#main_input').html();
+				console.log("After conversion, the text is:", whole_text)
+				placeCaretAtEnd( document.getElementById("main_input") );
+			}
+			// $('#main_output').text(whole_text);
+
+			// var selection = $(this).position()
+			// console.log(selection)
+		})
+</script>
+
+
+{% endblock %}
