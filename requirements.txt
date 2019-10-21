@@ -27,7 +27,7 @@ coverage==3.7.1
 dropbox==2.1.0
 gunicorn==18.0
 html5lib==1.0b3
-httpie==0.7.2
+httpie==1.0.3
 itsdangerous==0.23
 mechanize==0.2.5
 passlib==1.6.2
